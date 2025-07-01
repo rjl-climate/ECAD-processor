@@ -1,4 +1,4 @@
-# European Climate Assessment & Dataset Processor V2
+# European Climate Assessment & Dataset Processor
 
 A high-performance Rust application for processing multi-metric weather data from the European Climate Assessment & Dataset (ECA&D) format into efficient Parquet files for analysis.
 
@@ -21,8 +21,8 @@ A high-performance Rust application for processing multi-metric weather data fro
 ### Build from Source
 
 ```bash
-git clone <repository-url>
-cd ECAD-processor
+git clone https://github.com/rjl-climate/ECAD-processor
+cd ecad-processor
 cargo build --release
 ```
 
@@ -133,7 +133,7 @@ ecad-processor validate -i UK_TEMPERATURE.zip --verbose
 ecad-processor info -f weather.parquet
 ```
 
-## Data Format Requirements (V2)
+## Data Format Requirements
 
 ### Archive-Based Processing
 
@@ -145,8 +145,8 @@ data/
 ├── UK_TEMPERATURE_MAX.zip        # Temperature maximum archive
 ├── UK_TEMPERATURE_AVG.zip        # Temperature average archive
 ├── UK_PRECIPITATION.zip          # Precipitation archive
-├── UK_WIND_SPEED.zip            # Wind speed archive
-└── ...                          # Additional weather metrics
+├── UK_WIND_SPEED.zip             # Wind speed archive
+└── ...                           # Additional weather metrics
 ```
 
 ### Archive Contents Structure
@@ -156,7 +156,7 @@ UK_TEMPERATURE_MIN.zip
 ├── stations.txt                 # Station metadata
 ├── sources.txt                  # Data source information
 ├── elements.txt                 # Element definitions
-├── TN_STAID000257.txt          # Station temperature files
+├── TN_STAID000257.txt           # Station temperature files
 ├── TN_STAID000500.txt
 └── ...
 ```
@@ -175,8 +175,9 @@ The processor can combine multiple archives into unified weather records:
 3. Skip `Location` for all stations or select specific regions
 4. Select `Element` (Temperature, Precipitation, Wind Speed, etc.)
 5. Click `Next` and then `Download`
-6. Repeat for additional weather metrics as needed
-7. Keep ZIP files for direct processing - no extraction required
+6. Rename as required (arbitrary - the application infers content)
+7. Repeat for additional weather metrics as needed
+8. Keep ZIP files for direct processing - no extraction required
 
 ### File Formats
 
@@ -194,9 +195,9 @@ ECA&D format with temperature readings:
 100805,18810101,   14,    0
 ```
 
-## Output Schema (V2)
+## Output Schema
 
-The V2 processor generates multi-metric weather records supporting sparse data patterns. For complete schema documentation, see [output/SCHEMA.md](output/SCHEMA.md).
+The processor generates multi-metric weather records supporting sparse data patterns. For complete schema documentation, see [output/SCHEMA.md](output/SCHEMA.md).
 
 ### Key Features
 - **16-column format** supporting temperature, precipitation, and wind speed
@@ -262,7 +263,7 @@ The V2 processor generates multi-metric weather records supporting sparse data p
 
 ## Data Validation (V2)
 
-The V2 processor implements a comprehensive two-layer quality system for multi-metric weather data:
+The processor implements a comprehensive two-layer quality system for multi-metric weather data:
 
 ### Two-Layer Quality Architecture
 
@@ -301,7 +302,7 @@ The V2 processor implements a comprehensive two-layer quality system for multi-m
 
 ### Validation Reporting
 
-The V2 system generates comprehensive integrity reports for multi-metric datasets:
+The system generates comprehensive integrity reports for multi-metric datasets:
 
 ```
 === Multi-Metric Integrity Report ===
@@ -392,7 +393,7 @@ WHERE temp_min IS NOT NULL AND precipitation IS NOT NULL AND wind_speed IS NOT N
   AND temp_validation = 'Valid' AND precip_validation = 'Valid' AND wind_validation = 'Valid';
 ```
 
-## Performance Characteristics (V2)
+## Performance Characteristics
 
 ### Multi-Archive Processing Speed
 - **Single Archive**: ~1M records processed per second
@@ -414,7 +415,7 @@ WHERE temp_min IS NOT NULL AND precipitation IS NOT NULL AND wind_speed IS NOT N
 - **Storage Optimization**: Columnar format with metric-specific compression
 - **Archive Concurrency**: Parallel processing of multiple weather data sources
 
-## Error Handling (V2)
+## Error Handling
 
 The V2 processor provides comprehensive error reporting for multi-archive processing:
 
@@ -425,7 +426,7 @@ The V2 processor provides comprehensive error reporting for multi-archive proces
 4. **Memory Issues**: Reduce `--chunk-size` for memory-constrained environments
 5. **Permission Errors**: Ensure write access to output directory
 
-### Troubleshooting V2 Features
+### Troubleshooting Features
 - Use `--verbose` flag for detailed multi-archive processing logs
 - Verify ZIP archives contain valid ECA&D format files
 - Check file patterns when using directory processing
