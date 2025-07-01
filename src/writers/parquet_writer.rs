@@ -24,7 +24,7 @@ impl ParquetWriter {
             row_group_size: DEFAULT_ROW_GROUP_SIZE,
         }
     }
-    
+
     pub fn with_compression(mut self, compression: &str) -> Result<Self> {
         self.compression = match compression.to_lowercase().as_str() {
             "snappy" => Compression::SNAPPY,
@@ -32,40 +32,43 @@ impl ParquetWriter {
             "lz4" => Compression::LZ4,
             "zstd" => Compression::ZSTD(parquet::basic::ZstdLevel::default()),
             "none" => Compression::UNCOMPRESSED,
-            _ => return Err(crate::error::ProcessingError::Config(
-                format!("Unsupported compression: {}", compression)
-            )),
+            _ => {
+                return Err(crate::error::ProcessingError::Config(format!(
+                    "Unsupported compression: {}",
+                    compression
+                )))
+            }
         };
         Ok(self)
     }
-    
+
     pub fn with_row_group_size(mut self, size: usize) -> Self {
         self.row_group_size = size;
         self
     }
-    
+
     /// Write consolidated records to Parquet file
     pub fn write_records(&self, records: &[ConsolidatedRecord], path: &Path) -> Result<()> {
         if records.is_empty() {
             return Ok(());
         }
-        
+
         let schema = self.create_schema();
         let batch = self.records_to_batch(records, schema.clone())?;
-        
+
         let file = File::create(path)?;
         let props = WriterProperties::builder()
             .set_compression(self.compression)
             .set_max_row_group_size(self.row_group_size)
             .build();
-        
+
         let mut writer = ArrowWriter::try_new(file, schema, Some(props))?;
         writer.write(&batch)?;
         writer.close()?;
-        
+
         Ok(())
     }
-    
+
     /// Write records in batches for memory efficiency
     pub fn write_records_batched(
         &self,
@@ -76,26 +79,26 @@ impl ParquetWriter {
         if records.is_empty() {
             return Ok(());
         }
-        
+
         let schema = self.create_schema();
         let file = File::create(path)?;
         let props = WriterProperties::builder()
             .set_compression(self.compression)
             .set_max_row_group_size(self.row_group_size)
             .build();
-        
+
         let mut writer = ArrowWriter::try_new(file, schema.clone(), Some(props))?;
-        
+
         // Write in batches
         for chunk in records.chunks(batch_size) {
             let batch = self.records_to_batch(chunk, schema.clone())?;
             writer.write(&batch)?;
         }
-        
+
         writer.close()?;
         Ok(())
     }
-    
+
     /// Create Arrow schema for temperature data
     fn create_schema(&self) -> Arc<Schema> {
         let fields = vec![
@@ -109,10 +112,10 @@ impl ParquetWriter {
             Field::new("avg_temp", DataType::Float32, false),
             Field::new("quality_flags", DataType::Utf8, false),
         ];
-        
+
         Arc::new(Schema::new(fields))
     }
-    
+
     /// Convert records to Arrow RecordBatch
     fn records_to_batch(
         &self,
@@ -122,16 +125,14 @@ impl ParquetWriter {
         // Extract data into separate vectors
         let station_ids: Vec<u32> = records.iter().map(|r| r.station_id).collect();
         let station_names: Vec<String> = records.iter().map(|r| r.station_name.clone()).collect();
-        let dates: Vec<i32> = records.iter()
-            .map(|r| r.date.num_days_from_ce())
-            .collect();
+        let dates: Vec<i32> = records.iter().map(|r| r.date.num_days_from_ce()).collect();
         let latitudes: Vec<f64> = records.iter().map(|r| r.latitude).collect();
         let longitudes: Vec<f64> = records.iter().map(|r| r.longitude).collect();
         let min_temps: Vec<f32> = records.iter().map(|r| r.min_temp).collect();
         let max_temps: Vec<f32> = records.iter().map(|r| r.max_temp).collect();
         let avg_temps: Vec<f32> = records.iter().map(|r| r.avg_temp).collect();
         let quality_flags: Vec<String> = records.iter().map(|r| r.quality_flags.clone()).collect();
-        
+
         // Create Arrow arrays
         let station_id_array = Arc::new(UInt32Array::from(station_ids));
         let station_name_array = Arc::new(StringArray::from(station_names));
@@ -142,7 +143,7 @@ impl ParquetWriter {
         let max_temp_array = Arc::new(Float32Array::from(max_temps));
         let avg_temp_array = Arc::new(Float32Array::from(avg_temps));
         let quality_flags_array = Arc::new(StringArray::from(quality_flags));
-        
+
         // Create record batch
         let batch = RecordBatch::try_new(
             schema,
@@ -158,30 +159,170 @@ impl ParquetWriter {
                 quality_flags_array,
             ],
         )?;
-        
+
         Ok(batch)
     }
-    
+
+    /// Read sample records from Parquet file
+    pub fn read_sample_records(
+        &self,
+        path: &Path,
+        limit: usize,
+    ) -> Result<Vec<ConsolidatedRecord>> {
+        use arrow::array::*;
+        use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
+
+        let file = File::open(path)?;
+        let parquet_reader = ParquetRecordBatchReaderBuilder::try_new(file)?
+            .with_batch_size(limit.min(8192))
+            .build()?;
+
+        let mut records = Vec::new();
+        let mut total_read = 0;
+
+        for batch_result in parquet_reader {
+            let batch = batch_result?;
+
+            // Extract arrays from the batch
+            let station_ids = batch
+                .column(0)
+                .as_any()
+                .downcast_ref::<UInt32Array>()
+                .ok_or_else(|| {
+                    crate::error::ProcessingError::Config(
+                        "Invalid station_id column type".to_string(),
+                    )
+                })?;
+            let station_names = batch
+                .column(1)
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .ok_or_else(|| {
+                    crate::error::ProcessingError::Config(
+                        "Invalid station_name column type".to_string(),
+                    )
+                })?;
+            let dates = batch
+                .column(2)
+                .as_any()
+                .downcast_ref::<Date32Array>()
+                .ok_or_else(|| {
+                    crate::error::ProcessingError::Config("Invalid date column type".to_string())
+                })?;
+            let latitudes = batch
+                .column(3)
+                .as_any()
+                .downcast_ref::<Float64Array>()
+                .ok_or_else(|| {
+                    crate::error::ProcessingError::Config(
+                        "Invalid latitude column type".to_string(),
+                    )
+                })?;
+            let longitudes = batch
+                .column(4)
+                .as_any()
+                .downcast_ref::<Float64Array>()
+                .ok_or_else(|| {
+                    crate::error::ProcessingError::Config(
+                        "Invalid longitude column type".to_string(),
+                    )
+                })?;
+            let min_temps = batch
+                .column(5)
+                .as_any()
+                .downcast_ref::<Float32Array>()
+                .ok_or_else(|| {
+                    crate::error::ProcessingError::Config(
+                        "Invalid min_temp column type".to_string(),
+                    )
+                })?;
+            let max_temps = batch
+                .column(6)
+                .as_any()
+                .downcast_ref::<Float32Array>()
+                .ok_or_else(|| {
+                    crate::error::ProcessingError::Config(
+                        "Invalid max_temp column type".to_string(),
+                    )
+                })?;
+            let avg_temps = batch
+                .column(7)
+                .as_any()
+                .downcast_ref::<Float32Array>()
+                .ok_or_else(|| {
+                    crate::error::ProcessingError::Config(
+                        "Invalid avg_temp column type".to_string(),
+                    )
+                })?;
+            let quality_flags = batch
+                .column(8)
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .ok_or_else(|| {
+                    crate::error::ProcessingError::Config(
+                        "Invalid quality_flags column type".to_string(),
+                    )
+                })?;
+
+            // Convert to ConsolidatedRecord objects
+            let batch_records_to_read = (batch.num_rows()).min(limit - total_read);
+
+            for i in 0..batch_records_to_read {
+                let date = chrono::NaiveDate::from_num_days_from_ce_opt(dates.value(i))
+                    .ok_or_else(|| {
+                        crate::error::ProcessingError::Config(
+                            "Invalid date in Parquet file".to_string(),
+                        )
+                    })?;
+
+                let record = ConsolidatedRecord::new(
+                    station_ids.value(i),
+                    station_names.value(i).to_string(),
+                    date,
+                    latitudes.value(i),
+                    longitudes.value(i),
+                    min_temps.value(i),
+                    max_temps.value(i),
+                    avg_temps.value(i),
+                    quality_flags.value(i).to_string(),
+                );
+
+                records.push(record);
+                total_read += 1;
+
+                if total_read >= limit {
+                    break;
+                }
+            }
+
+            if total_read >= limit {
+                break;
+            }
+        }
+
+        Ok(records)
+    }
+
     /// Get file statistics
     pub fn get_file_info(&self, path: &Path) -> Result<ParquetFileInfo> {
         use parquet::file::reader::{FileReader, SerializedFileReader};
         use std::fs::File;
-        
+
         let file = File::open(path)?;
         let reader = SerializedFileReader::new(file)?;
         let metadata = reader.metadata();
-        
+
         let file_metadata = metadata.file_metadata();
         let row_groups = metadata.num_row_groups();
         let total_rows = file_metadata.num_rows();
         let file_size = std::fs::metadata(path)?.len();
-        
+
         let mut row_group_sizes = Vec::new();
         for i in 0..row_groups {
             let rg_metadata = metadata.row_group(i);
             row_group_sizes.push(rg_metadata.num_rows());
         }
-        
+
         Ok(ParquetFileInfo {
             total_rows,
             row_groups: row_groups as i32,
@@ -231,21 +372,21 @@ mod tests {
     use crate::models::ConsolidatedRecord;
     use chrono::NaiveDate;
     use tempfile::NamedTempFile;
-    
+
     #[test]
     fn test_write_empty_records() {
         let writer = ParquetWriter::new();
         let temp_file = NamedTempFile::new().unwrap();
-        
+
         let result = writer.write_records(&[], temp_file.path());
         assert!(result.is_ok());
     }
-    
+
     #[test]
     fn test_write_single_record() -> Result<()> {
         let writer = ParquetWriter::new();
         let temp_file = NamedTempFile::new().unwrap();
-        
+
         let date = NaiveDate::from_ymd_opt(2023, 7, 15).unwrap();
         let record = ConsolidatedRecord::new(
             12345,
@@ -258,24 +399,24 @@ mod tests {
             20.0,
             "000".to_string(),
         );
-        
+
         writer.write_records(&[record], temp_file.path())?;
-        
+
         // Verify file was created and has content
         let metadata = std::fs::metadata(temp_file.path())?;
         assert!(metadata.len() > 0);
-        
+
         Ok(())
     }
-    
+
     #[test]
     fn test_different_compressions() -> Result<()> {
         let compressions = ["snappy", "gzip", "lz4", "zstd", "none"];
-        
+
         for compression in &compressions {
             let writer = ParquetWriter::new().with_compression(compression)?;
             let temp_file = NamedTempFile::new().unwrap();
-            
+
             let date = NaiveDate::from_ymd_opt(2023, 7, 15).unwrap();
             let record = ConsolidatedRecord::new(
                 12345,
@@ -288,11 +429,11 @@ mod tests {
                 20.0,
                 "000".to_string(),
             );
-            
+
             let result = writer.write_records(&[record], temp_file.path());
             assert!(result.is_ok(), "Failed with compression: {}", compression);
         }
-        
+
         Ok(())
     }
 }

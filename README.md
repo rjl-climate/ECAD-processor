@@ -82,8 +82,10 @@ Options:
 ECAD-processor info [OPTIONS]
 
 Options:
-  -f, --file <FILE>        Parquet file to analyze
-  -s, --sample <NUM>       Number of sample records to display [default: 10]
+  -f, --file <FILE>                  Parquet file to analyze
+  -s, --sample <NUM>                 Number of sample records to display [default: 10]
+      --analysis-limit <LIMIT>       Maximum records to analyze (0 = all records) [default: 0]
+  -v, --verbose                      Enable verbose logging
 ```
 
 ### Example Usage

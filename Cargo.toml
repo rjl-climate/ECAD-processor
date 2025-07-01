@@ -13,8 +13,8 @@ serde_json = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
 
 # Parquet and Arrow
-arrow = "53.0"
-parquet = "53.0"
+arrow = "55.0"
+parquet = "55.0"
 
 # CSV and file processing
 csv = "1.3"

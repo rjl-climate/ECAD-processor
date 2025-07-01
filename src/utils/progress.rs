@@ -23,14 +23,14 @@ impl ProgressReporter {
             );
             pb.set_message(message.to_string());
             pb.enable_steady_tick(Duration::from_millis(100));
-            
+
             Self {
                 progress_bar: Some(pb),
                 silent: false,
             }
         }
     }
-    
+
     pub fn new_spinner(message: &str, silent: bool) -> Self {
         if silent {
             Self {
@@ -46,44 +46,44 @@ impl ProgressReporter {
             );
             pb.set_message(message.to_string());
             pb.enable_steady_tick(Duration::from_millis(100));
-            
+
             Self {
                 progress_bar: Some(pb),
                 silent: false,
             }
         }
     }
-    
+
     pub fn update(&self, current: u64) {
         if let Some(ref pb) = self.progress_bar {
             pb.set_position(current);
         }
     }
-    
+
     pub fn increment(&self, delta: u64) {
         if let Some(ref pb) = self.progress_bar {
             pb.inc(delta);
         }
     }
-    
+
     pub fn set_message(&self, message: &str) {
         if let Some(ref pb) = self.progress_bar {
             pb.set_message(message.to_string());
         }
     }
-    
+
     pub fn finish_with_message(&self, message: &str) {
         if let Some(ref pb) = self.progress_bar {
             pb.finish_with_message(message.to_string());
         }
     }
-    
+
     pub fn finish(&self) {
         if let Some(ref pb) = self.progress_bar {
             pb.finish();
         }
     }
-    
+
     pub fn println(&self, message: &str) {
         if !self.silent {
             if let Some(ref pb) = self.progress_bar {
@@ -131,11 +131,14 @@ impl MultiProgressReporter {
                     pb
                 })
                 .collect();
-                
-            Self { bars, silent: false }
+
+            Self {
+                bars,
+                silent: false,
+            }
         }
     }
-    
+
     pub fn get_bar(&self, index: usize) -> Option<&ProgressBar> {
         if self.silent {
             None
@@ -143,7 +146,7 @@ impl MultiProgressReporter {
             self.bars.get(index)
         }
     }
-    
+
     pub fn finish_all(&self) {
         for bar in &self.bars {
             bar.finish();

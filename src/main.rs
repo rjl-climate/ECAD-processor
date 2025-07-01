@@ -1,5 +1,5 @@
 use clap::Parser;
-use ecad_processor::cli::{Cli, run};
+use ecad_processor::cli::{run, Cli};
 use ecad_processor::error::Result;
 
 #[tokio::main]
