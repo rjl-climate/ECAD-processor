@@ -1,4 +1,5 @@
 pub mod analyzers;
+pub mod archive;
 pub mod cli;
 pub mod error;
 pub mod models;

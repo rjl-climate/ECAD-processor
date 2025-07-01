@@ -1,11 +1,13 @@
-# European Climate Assessment & Dataset data processor
+# European Climate Assessment & Dataset Processor V2
 
-A high-performance Rust application for processing UK temperature data from the European Climate Assessment & Dataset (ECA&D) format into efficient Parquet files for analysis.
+A high-performance Rust application for processing multi-metric weather data from the European Climate Assessment & Dataset (ECA&D) format into efficient Parquet files for analysis.
 
 ## Features
 
-- **Data Validation**: Comprehensive integrity checking with detailed quality reporting
-- **Multiple Formats**: Support for min, max, and average temperature data consolidation
+- **Multi-Metric Processing**: Temperature, precipitation, and wind speed data in unified format
+- **Archive-Based Processing**: Direct ZIP file processing with automatic format detection
+- **Advanced Validation**: Two-layer quality system with ECAD flags and physical validation
+- **Sparse Data Support**: Efficient handling of records with different metric combinations
 - **Memory Efficient**: Streaming processing with configurable batch sizes
 - **Production Ready**: Single binary distribution with no runtime dependencies
 
@@ -24,7 +26,7 @@ cd ECAD-processor
 cargo build --release
 ```
 
-The compiled binary will be available at `target/release/ECAD-processor`.
+The compiled binary will be available at `target/release/ecad-processor`.
 
 ### Dependencies
 
@@ -40,26 +42,44 @@ The project uses several high-performance Rust crates:
 ### Basic Commands
 
 ```bash
-# Process temperature data into Parquet format
-ECAD-processor process --input-dir data/ --output-file output/temperatures.parquet
+# Process single ZIP archive into multi-metric Parquet format (uses date-based filename)
+ecad-processor process --input-archive data/weather.zip
 
-# Validate data integrity without generating output
-ECAD-processor validate --input-dir data/
+# Process all ZIP files in directory into unified dataset (uses date-based filename)
+ecad-processor process-directory --input-dir data/
 
-# Analyze existing Parquet file
-ECAD-processor info --file output/temperatures.parquet
+# Validate archive integrity without generating output
+ecad-processor validate --input-archive data/weather.zip
+
+# Analyze existing Parquet file (auto-detects v1/v2 schema)
+ecad-processor info --file output/weather.parquet
 ```
 
 ### Command Options
 
-#### Process Command
+#### Process Command (Single Archive)
 ```bash
-ECAD-processor process [OPTIONS]
+ecad-processor process [OPTIONS]
 
 Options:
-  -i, --input-dir <DIR>          Input directory containing UK temperature data [default: data]
-  -o, --output-file <FILE>       Output Parquet file path [default: output/temperatures.parquet]
+  -i, --input-archive <FILE>     Input ZIP archive containing weather data
+  -o, --output-file <FILE>       Output Parquet file path [default: ecad-weather-{YYMMDD}.parquet]
   -c, --compression <TYPE>       Compression type: snappy, gzip, lz4, zstd, none [default: snappy]
+  -s, --station-id <ID>          Process only specific station ID
+      --validate-only            Run validation without generating output
+      --max-workers <NUM>        Maximum number of worker threads [default: CPU count]
+      --chunk-size <SIZE>        Processing batch size [default: 1000]
+  -v, --verbose                  Enable verbose logging
+```
+
+#### Process Directory Command (Multi-Archive)
+```bash
+ecad-processor process-directory [OPTIONS]
+
+Options:
+  -i, --input-dir <DIR>          Directory containing ZIP archives
+  -o, --output-file <FILE>       Output unified Parquet file path [default: ecad-weather-unified-{YYMMDD}.parquet]
+      --file-pattern <PATTERN>   Filter archives by filename pattern
   -s, --station-id <ID>          Process only specific station ID
       --validate-only            Run validation without generating output
       --max-workers <NUM>        Maximum number of worker threads [default: CPU count]
@@ -69,17 +89,17 @@ Options:
 
 #### Validate Command
 ```bash
-ECAD-processor validate [OPTIONS]
+ecad-processor validate [OPTIONS]
 
 Options:
-  -i, --input-dir <DIR>     Input directory [default: data]
-      --max-workers <NUM>   Maximum worker threads [default: CPU count]
-  -v, --verbose            Enable verbose logging
+  -i, --input-archive <FILE>    Input ZIP archive to validate
+      --max-workers <NUM>       Maximum worker threads [default: CPU count]
+  -v, --verbose                Enable verbose logging
 ```
 
 #### Info Command
 ```bash
-ECAD-processor info [OPTIONS]
+ecad-processor info [OPTIONS]
 
 Options:
   -f, --file <FILE>                  Parquet file to analyze
@@ -91,47 +111,72 @@ Options:
 ### Example Usage
 
 ```bash
-# Process all UK temperature data with GZIP compression
-ECAD-processor process -i data/ -o uk_temps.parquet -c gzip
+# Process single weather archive with GZIP compression (uses default date-based filename)
+ecad-processor process -i UK_TEMPERATURE.zip -c gzip
 
-# Process single station with high parallelism
-ECAD-processor process -s 257 --max-workers 16 -o station_257.parquet
+# Process single weather archive with custom filename
+ecad-processor process -i UK_TEMPERATURE.zip -o weather.parquet -c gzip
 
-# Validate data integrity with detailed reporting
-ECAD-processor validate -i data/ --verbose
+# Process all archives in directory into unified dataset (uses default date-based filename)
+ecad-processor process-directory -i data/
 
-# Analyze generated Parquet file
-ECAD-processor info -f uk_temps.parquet
+# Process only temperature archives using pattern filter with custom filename
+ecad-processor process-directory -i data/ --file-pattern TEMP -o temp_only.parquet
+
+# Process single station across all metrics with high parallelism and custom filename
+ecad-processor process-directory -i data/ -s 257 --max-workers 16 -o station_257.parquet
+
+# Validate archive integrity with detailed reporting
+ecad-processor validate -i UK_TEMPERATURE.zip --verbose
+
+# Analyze generated Parquet file (detects v1/v2 schema automatically)
+ecad-processor info -f weather.parquet
 ```
 
-## Data Format Requirements
+## Data Format Requirements (V2)
 
-### Input Directory Structure
+### Archive-Based Processing
+
+V2 processes weather data directly from ECA&D ZIP archives without requiring extraction:
+
 ```
 data/
-├── uk_temp_min/
-│   ├── stations.txt          # Station metadata
-│   ├── TN_STAID000257.txt   # Min temperature files
-│   └── ...
-├── uk_temp_max/
-│   ├── stations.txt          # Station metadata
-│   ├── TX_STAID000257.txt   # Max temperature files
-│   └── ...
-└── uk_temp_avg/
-    ├── stations.txt          # Station metadata
-    ├── TG_STAID000257.txt   # Avg temperature files
-    └── ...
+├── UK_TEMPERATURE_MIN.zip        # Temperature minimum archive
+├── UK_TEMPERATURE_MAX.zip        # Temperature maximum archive
+├── UK_TEMPERATURE_AVG.zip        # Temperature average archive
+├── UK_PRECIPITATION.zip          # Precipitation archive
+├── UK_WIND_SPEED.zip            # Wind speed archive
+└── ...                          # Additional weather metrics
 ```
+
+### Archive Contents Structure
+Each ZIP archive contains the standard ECA&D format:
+```
+UK_TEMPERATURE_MIN.zip
+├── stations.txt                 # Station metadata
+├── sources.txt                  # Data source information
+├── elements.txt                 # Element definitions
+├── TN_STAID000257.txt          # Station temperature files
+├── TN_STAID000500.txt
+└── ...
+```
+
+### Multi-Archive Processing
+
+The processor can combine multiple archives into unified weather records:
+- **Single Archive**: Process one metric type (e.g., temperature only)
+- **Multi-Archive**: Combine temperature, precipitation, wind speed into unified records
+- **Filtered Processing**: Use filename patterns to select specific archives
 
 ### To obtain the European Climate Assessment datasets,
 
 1. Go to [Custom query in ASCII](https://www.ecad.eu/dailydata/customquery.php)
-2. Select country
-3. Skip `Location` for all data
-3. Select `Element` ('Maximum Temperature', etc.)
-4. Select `Next`
-5. Click `Download`
-6. Repeat for Minimum and Average Temperature
+2. Select country (e.g., United Kingdom)
+3. Skip `Location` for all stations or select specific regions
+4. Select `Element` (Temperature, Precipitation, Wind Speed, etc.)
+5. Click `Next` and then `Download`
+6. Repeat for additional weather metrics as needed
+7. Keep ZIP files for direct processing - no extraction required
 
 ### File Formats
 
@@ -149,10 +194,17 @@ ECA&D format with temperature readings:
 100805,18810101,   14,    0
 ```
 
-## Output Schema
+## Output Schema (V2)
 
-The generated Parquet file contains consolidated temperature records with the following schema:
+The V2 processor generates multi-metric weather records supporting sparse data patterns. For complete schema documentation, see [output/SCHEMA.md](output/SCHEMA.md).
 
+### Key Features
+- **16-column format** supporting temperature, precipitation, and wind speed
+- **Sparse data model** - records can contain any combination of metrics
+- **Two-layer quality system** - ECAD flags + physical validation
+- **Backward compatibility** with V1 temperature-only files
+
+### Core Fields
 | Column | Type | Description |
 |--------|------|-------------|
 | `station_id` | UInt32 | Unique station identifier |
@@ -160,154 +212,225 @@ The generated Parquet file contains consolidated temperature records with the fo
 | `date` | Date32 | Measurement date (YYYY-MM-DD) |
 | `latitude` | Float64 | Station latitude in decimal degrees |
 | `longitude` | Float64 | Station longitude in decimal degrees |
-| `min_temp` | Float32 | Daily minimum temperature (°C) |
-| `max_temp` | Float32 | Daily maximum temperature (°C) |
-| `avg_temp` | Float32 | Daily average temperature (°C) |
-| `quality_flags` | String | Quality flags for min/avg/max (3 digits) |
 
-### Example Record
+### Weather Metrics (Nullable)
+| Column | Type | Description |
+|--------|------|-------------|
+| `temp_min` | Float32 | Daily minimum temperature (°C) |
+| `temp_max` | Float32 | Daily maximum temperature (°C) |
+| `temp_avg` | Float32 | Daily average temperature (°C) |
+| `precipitation` | Float32 | Daily precipitation (mm) |
+| `wind_speed` | Float32 | Daily wind speed (m/s) |
+
+### Quality Flags & Validation
+| Column | Type | Description |
+|--------|------|-------------|
+| `temp_quality` | String | ECAD temperature quality flags (3 digits) |
+| `precip_quality` | String | ECAD precipitation quality flag (1 digit) |
+| `wind_quality` | String | ECAD wind speed quality flag (1 digit) |
+| `temp_validation` | String | Physical validation: Valid/Suspect/Invalid |
+| `precip_validation` | String | Physical validation: Valid/Suspect/Invalid |
+| `wind_validation` | String | Physical validation: Valid/Suspect/Invalid |
+
+### Example Multi-Metric Record
 ```json
 {
   "station_id": 257,
   "station_name": "CET CENTRAL ENGLAND",
-  "date": "1881-01-01",
+  "date": "2023-07-15",
   "latitude": 52.42,
   "longitude": -1.83,
-  "min_temp": 1.4,
-  "max_temp": 6.2,
-  "avg_temp": 3.9,
-  "quality_flags": "000"
+  "temp_min": 12.5,
+  "temp_max": 25.3,
+  "temp_avg": 18.9,
+  "precipitation": 2.1,
+  "wind_speed": 4.7,
+  "temp_quality": "000",
+  "precip_quality": "0",
+  "wind_quality": "0",
+  "temp_validation": "Valid",
+  "precip_validation": "Valid",
+  "wind_validation": "Valid"
 }
 ```
 
-### Missing Data Handling
-- Missing temperatures are stored as `-9999.0`
-- Missing data does not prevent record creation
-- Quality flags indicate data availability and reliability
+### Sparse Data Handling
+- **NULL values** indicate missing measurements (not measurement errors)
+- Records may contain any combination of weather metrics
+- Quality flags and validation only present for available metrics
+- Efficient columnar storage optimizes sparse data patterns
 
-## Data Validation
+## Data Validation (V2)
 
-The processor performs comprehensive data validation across multiple levels:
+The V2 processor implements a comprehensive two-layer quality system for multi-metric weather data:
 
-### 1. Individual Record Validation
-- **Temperature Range**: Values between -50°C and +50°C
-- **Date Validity**: Proper date formatting and reasonable ranges
-- **Coordinate Bounds**: UK geographic boundaries (49.5°-61.0°N, -8.0°-2.0°E)
-- **Quality Flag Format**: Valid quality codes (0, 1, 9)
+### Two-Layer Quality Architecture
 
-### 2. Cross-Station Validation
-- **Station Metadata**: Consistent station information across temperature types
-- **Geographic Consistency**: Station coordinates within expected UK bounds
-- **Data Completeness**: Identification of missing data patterns
+#### 1. ECAD Quality Flags (Original)
+- **Source**: European Climate Assessment & Dataset quality indicators
+- **Values**: `0` (Valid), `1` (Suspect), `9` (Missing)
+- **Coverage**: All weather metrics with original quality assessments
 
-### 3. Time Series Validation
-- **Temporal Consistency**: Identification of suspicious temperature jumps
-- **Seasonal Patterns**: Detection of anomalous seasonal variations
-- **Long-term Trends**: Assessment of data continuity
+#### 2. Physical Validation (Enhanced)
+- **Source**: ECAD processor physical plausibility checks
+- **Values**: `Valid`, `Suspect`, `Invalid`
+- **Thresholds**: UK/Ireland-specific physical limits
 
-### 4. Data Relationship Validation (Informational)
-- **Physical Constraints**: Monitoring of min ≤ avg ≤ max relationships
-- **Cross-Source Consistency**: Comparison across different measurement sources
-- **Quality Assessment**: Statistical analysis of data reliability
+### Physical Validation Thresholds
+
+#### Temperature (°C)
+- **Valid**: -35.0 to 45.0 (normal UK/Ireland range)
+- **Suspect**: -90.0 to 60.0 (extreme but possible)
+- **Invalid**: Below -90.0 or above 60.0 (physically impossible)
+
+#### Precipitation (mm/day)
+- **Valid**: 0.0 to 500.0 (normal range)
+- **Suspect**: 500.0 to 2000.0 (extreme rainfall events)
+- **Invalid**: Above 2000.0 or negative (impossible)
+
+#### Wind Speed (m/s)
+- **Valid**: 0.0 to 50.0 (normal to strong winds)
+- **Suspect**: 50.0 to 120.0 (hurricane-force winds)
+- **Invalid**: Above 120.0 or negative (impossible)
+
+### Multi-Metric Validation Features
+- **Sparse Data Support**: Validation applied only to available metrics
+- **Cross-Metric Consistency**: Temperature relationship validation (min ≤ avg ≤ max)
+- **Geographic Bounds**: Station coordinates within UK/Ireland boundaries
+- **Quality Flag Consistency**: Combined assessment of ECAD and physical validation
 
 ### Validation Reporting
 
-The system generates detailed integrity reports including:
+The V2 system generates comprehensive integrity reports for multi-metric datasets:
 
 ```
-=== Integrity Check Report ===
-Total Records: 2,498,741
-Valid Records: 2,299,078 (92.0%)
-Suspect Records: 199,663 (8.0%)
-Invalid Records: 0 (0.0%)
-Missing Data Records: 0
+=== Multi-Metric Integrity Report ===
+Dataset Composition:
+  Metrics in Parquet: ["temperature", "precipitation", "wind_speed"]
+  Total records: 2,498,741
 
-Temperature Violations: 97,112
+Metric Coverage:
+  Temperature: 2,299,078/2,498,741 (92.0%)
+  Precipitation: 1,847,395/2,498,741 (74.0%)
+  Wind Speed: 956,428/2,498,741 (38.3%)
 
-Top 10 Violations:
-  1. Station 257 on 1881-01-13: Avg temperature -2.9 > Max temperature -4.3
-  2. Station 257 on 1881-02-10: Avg temperature 6.1 > Max temperature 4.7
-  ...
+ECAD Assessment:
+  Valid Records: 2,453,867 (98.2%)
+  Suspect Records: 44,874 (1.8%)
+  Invalid Records: 0 (0.0%)
+
+Physical Validation:
+  Valid: 2,486,523 (99.5%)
+  Suspect: 12,218 (0.5%)
+  Invalid: 0 (0.0%)
+
+Data Quality Summary:
+  • Combined quality assessment across all metrics
+  • Invalid records excluded from extreme value analysis
+  • Sparse data patterns efficiently handled
 ```
 
-## Quality Codes
+## Quality Codes (V2)
 
-Temperature data includes quality flags that indicate measurement reliability:
+Multi-metric weather data includes quality flags for each available measurement type:
 
-### Quality Flag Values
+### ECAD Quality Flag Values
 | Code | Status | Description | Action |
 |------|--------|-------------|---------|
 | `0` | **Valid** | High-quality measurement | ✅ Use for analysis |
 | `1` | **Suspect** | Questionable measurement | ⚠️ Use with caution |
 | `9` | **Missing** | No measurement available | ❌ Exclude from analysis |
 
-### Quality Flag Format
-The `quality_flags` field contains a 3-character string representing quality for each temperature type:
+### Physical Validation Values
+| Status | Description | Action |
+|--------|-------------|---------|
+| `Valid` | Within normal physical limits | ✅ Use for analysis |
+| `Suspect` | Extreme but physically possible | ⚠️ Flag for review |
+| `Invalid` | Physically impossible | ❌ Exclude from analysis |
+
+### Quality Flag Formats
+
+#### Temperature Quality (`temp_quality`)
+3-character string for min/avg/max temperatures:
 - **Position 1**: Minimum temperature quality
 - **Position 2**: Average temperature quality
 - **Position 3**: Maximum temperature quality
+- **Examples**: `"000"` (all valid), `"190"` (min suspect, avg missing, max valid)
 
-#### Examples
-- `"000"` = All temperatures are valid
-- `"090"` = Min/max valid, average missing
-- `"111"` = All temperatures suspect
-- `"901"` = Min missing, avg valid, max suspect
+#### Precipitation/Wind Quality (`precip_quality`, `wind_quality`)
+1-character string for single metric:
+- **Examples**: `"0"` (valid), `"1"` (suspect), `"9"` (missing)
 
-### Data Quality Best Practices
+### Data Quality Best Practices (V2)
 
-#### For Analysis
-1. **High Confidence**: Use only records with `"000"` quality flags
-2. **Standard Analysis**: Include valid (`0`) and suspect (`1`) data with appropriate filtering
-3. **Research Applications**: Consider all data but weight by quality flags
+#### For Multi-Metric Analysis
+1. **High Confidence**: Use only physically valid data with ECAD quality `0`
+2. **Standard Analysis**: Include valid and suspect data, exclude invalid
+3. **Research Applications**: Consider all data but weight by combined quality assessment
 
 #### Quality Filtering Examples
 ```sql
--- High quality data only
-SELECT * FROM temperatures WHERE quality_flags = '000';
+-- High quality temperature data only
+SELECT * FROM weather_data
+WHERE temp_validation = 'Valid' AND temp_quality = '000';
 
--- Include valid and suspect data
-SELECT * FROM temperatures
-WHERE quality_flags NOT LIKE '%9%';
+-- Include all physically valid data across metrics
+SELECT * FROM weather_data
+WHERE (temp_validation != 'Invalid' OR temp_validation IS NULL)
+  AND (precip_validation != 'Invalid' OR precip_validation IS NULL)
+  AND (wind_validation != 'Invalid' OR wind_validation IS NULL);
 
--- Valid minimum temperatures only
-SELECT * FROM temperatures
-WHERE substr(quality_flags, 1, 1) = '0';
+-- Valid precipitation measurements only
+SELECT * FROM weather_data
+WHERE precipitation IS NOT NULL
+  AND precip_validation = 'Valid'
+  AND precip_quality = '0';
+
+-- Multi-metric records with all data valid
+SELECT * FROM weather_data
+WHERE temp_min IS NOT NULL AND precipitation IS NOT NULL AND wind_speed IS NOT NULL
+  AND temp_validation = 'Valid' AND precip_validation = 'Valid' AND wind_validation = 'Valid';
 ```
 
-## Performance Characteristics
+## Performance Characteristics (V2)
 
-### Processing Speed
-- **Throughput**: ~2.5M records processed in seconds
-- **Memory Usage**: <100MB for entire UK dataset
+### Multi-Archive Processing Speed
+- **Single Archive**: ~1M records processed per second
+- **Multi-Archive**: Concurrent processing of multiple ZIP files
+- **Memory Usage**: <200MB for large multi-metric datasets
 - **Concurrency**: Automatic scaling to available CPU cores
-- **I/O Efficiency**: Memory-mapped file reading for large datasets
+- **I/O Efficiency**: Direct ZIP processing without extraction
 
 ### Output Optimization
-- **Compression**: 22.9MB output for 2.5M records (SNAPPY)
-- **Query Performance**: Columnar Parquet format optimized for analytics
-- **Row Groups**: Configurable sizing for optimal query patterns
-- **Schema Evolution**: Forward-compatible Parquet schema
+- **Compression**: 5-10x compression ratio with Snappy (default)
+- **Sparse Data**: Efficient NULL value handling in columnar format
+- **Query Performance**: Optimized for analytical workloads
+- **Row Groups**: Configurable sizing for memory-efficient streaming
+- **Schema Detection**: Automatic v1/v2 format recognition
 
-### Scalability
-- **Memory Efficient**: Streaming processing prevents memory exhaustion
+### Scalability Features
+- **Memory Efficient**: Streaming processing with configurable chunk sizes
 - **CPU Scaling**: Linear performance improvement with additional cores
-- **Storage**: Compressed output 10-20x smaller than CSV equivalent
+- **Storage Optimization**: Columnar format with metric-specific compression
+- **Archive Concurrency**: Parallel processing of multiple weather data sources
 
-## Error Handling
+## Error Handling (V2)
 
-The processor provides comprehensive error reporting:
+The V2 processor provides comprehensive error reporting for multi-archive processing:
 
 ### Common Issues
-1. **File Not Found**: Check input directory structure and file permissions
-2. **Invalid Data Format**: Verify ECA&D file format compliance
-3. **Memory Issues**: Reduce `--chunk-size` for memory-constrained environments
-4. **Permission Errors**: Ensure write access to output directory
+1. **Archive Not Found**: Check ZIP file paths and permissions
+2. **Invalid Archive Format**: Verify ECA&D ZIP archive structure
+3. **Unsupported Archive**: Some weather metrics may not be supported
+4. **Memory Issues**: Reduce `--chunk-size` for memory-constrained environments
+5. **Permission Errors**: Ensure write access to output directory
 
-### Troubleshooting
-- Use `--verbose` flag for detailed logging
-- Check file permissions and directory structure
-- Verify input data format matches ECA&D specification
-- Monitor system resources during large dataset processing
+### Troubleshooting V2 Features
+- Use `--verbose` flag for detailed multi-archive processing logs
+- Verify ZIP archives contain valid ECA&D format files
+- Check file patterns when using directory processing
+- Monitor system resources during concurrent archive processing
+- Use schema detection to verify output format compatibility
 
 ## Contributing
 
@@ -329,12 +452,14 @@ cargo clippy
 cargo bench
 ```
 
-### Code Organization
-- `src/models/`: Data structures and validation
-- `src/readers/`: File parsing and I/O operations
-- `src/processors/`: Data transformation and validation logic
-- `src/writers/`: Parquet file generation
-- `src/cli/`: Command-line interface
+### Code Organization (V2)
+- `src/models/`: Multi-metric data structures and validation
+- `src/archive/`: ZIP archive processing and multi-archive coordination
+- `src/readers/`: File parsing and concurrent I/O operations
+- `src/processors/`: Data transformation and integrity checking
+- `src/writers/`: Multi-schema Parquet file generation with schema detection
+- `src/analyzers/`: Weather dataset analysis and statistics
+- `src/cli/`: Enhanced command-line interface for archive processing
 
 ## License
 
@@ -362,6 +487,7 @@ SOFTWARE.
 
 ## Acknowledgments
 
-- European Climate Assessment & Dataset (ECA&D) for providing the temperature data
-- UK Met Office for weather station infrastructure
-- Rust community for excellent crates and tooling
+- European Climate Assessment & Dataset (ECA&D) for providing comprehensive weather data archives
+- UK Met Office for weather station infrastructure and data collection
+- Rust community for excellent crates enabling high-performance data processing
+- Arrow and Parquet ecosystems for efficient columnar data storage

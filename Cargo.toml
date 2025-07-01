@@ -1,9 +1,9 @@
 [package]
 name = "ecad-processor"
-version = "1.0.0"
+version = "2.0.0"
 edition = "2021"
 authors = ["Richard Lyon <richlyon@fastmail.com>"]
-description = "European Climate Assessment & Dataset data processor"
+description = "European Climate Assessment & Dataset weather data processor"
 license = "MIT"
 
 [dependencies]
@@ -47,9 +47,12 @@ validator = { version = "0.18", features = ["derive"] }
 # Configuration
 config = "0.14"
 
+# Archive processing
+zip = "0.6"
+tempfile = "3.8"
+
 [dev-dependencies]
 # Testing utilities
-tempfile = "3.8"
 criterion = { version = "0.5", features = ["html_reports"] }
 pretty_assertions = "1.4"
 

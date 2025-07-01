@@ -51,4 +51,7 @@ pub enum ProcessingError {
 
     #[error("Async task error: {0}")]
     TaskJoin(#[from] tokio::task::JoinError),
+
+    #[error("Zip archive error: {0}")]
+    Zip(#[from] zip::result::ZipError),
 }
