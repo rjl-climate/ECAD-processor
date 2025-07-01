@@ -1,0 +1,68 @@
+[package]
+name = "ecad-processor"
+version = "1.0.0"
+edition = "2021"
+authors = ["Richard Lyon <richlyon@fastmail.com>"]
+description = "European Climate Assessment & Dataset data processor"
+license = "MIT"
+
+[dependencies]
+# Data processing and serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+
+# Parquet and Arrow
+arrow = "53.0"
+parquet = "53.0"
+
+# CSV and file processing
+csv = "1.3"
+encoding_rs = "0.8"
+
+# CLI and argument parsing
+clap = { version = "4.4", features = ["derive"] }
+
+# Async and concurrency
+tokio = { version = "1.0", features = ["full"] }
+rayon = "1.8"
+crossbeam = "0.8"
+num_cpus = "1.16"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Progress and logging
+indicatif = "0.17"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+# Memory mapping for large files
+memmap2 = "0.9"
+
+# Validation
+validator = { version = "0.18", features = ["derive"] }
+
+# Configuration
+config = "0.14"
+
+[dev-dependencies]
+# Testing utilities
+tempfile = "3.8"
+criterion = { version = "0.5", features = ["html_reports"] }
+pretty_assertions = "1.4"
+
+[profile.release]
+lto = true        # Link-time optimization
+codegen-units = 1 # Better optimization
+panic = "abort"   # Smaller binary size
+strip = true      # Remove debug symbols
+
+[profile.release-fast]
+inherits = "release"
+opt-level = 3
+
+[[bench]]
+name = "processing_benchmark"
+harness = false

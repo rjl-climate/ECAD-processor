@@ -1,0 +1,12 @@
+# Rust
+/target
+
+# OS
+.DS_Store
+
+# Data directory - keep structure but ignore contents
+/data/*
+!/data/.gitkeep
+
+# Output
+/output/*.parquet
