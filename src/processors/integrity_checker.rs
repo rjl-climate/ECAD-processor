@@ -136,17 +136,16 @@ impl IntegrityChecker {
         report: &mut IntegrityReport,
     ) -> Result<()> {
         // Validate basic constraints
-        record
-            .validate_relationships()
-            .inspect_err(|e| {
-                report.temperature_violations.push(TemperatureViolation {
-                    station_id: record.station_id,
-                    date: record.date,
-                    violation_type: ViolationType::MinGreaterThanAvg,
-                    details: e.to_string(),
-                });
-            })
-            .ok();
+        let validation_result = record.validate_relationships();
+
+        if let Err(e) = validation_result {
+            report.temperature_violations.push(TemperatureViolation {
+                station_id: record.station_id,
+                date: record.date,
+                violation_type: ViolationType::MinGreaterThanAvg,
+                details: e.to_string(),
+            });
+        }
 
         // Check temperature ranges
         self.check_temperature_ranges(record, report)?;

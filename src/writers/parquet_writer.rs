@@ -125,7 +125,14 @@ impl ParquetWriter {
         // Extract data into separate vectors
         let station_ids: Vec<u32> = records.iter().map(|r| r.station_id).collect();
         let station_names: Vec<String> = records.iter().map(|r| r.station_name.clone()).collect();
-        let dates: Vec<i32> = records.iter().map(|r| r.date.num_days_from_ce()).collect();
+        let dates: Vec<i32> = records
+            .iter()
+            .map(|r| {
+                r.date
+                    .signed_duration_since(chrono::NaiveDate::from_ymd_opt(1970, 1, 1).unwrap())
+                    .num_days() as i32
+            })
+            .collect();
         let latitudes: Vec<f64> = records.iter().map(|r| r.latitude).collect();
         let longitudes: Vec<f64> = records.iter().map(|r| r.longitude).collect();
         let min_temps: Vec<f32> = records.iter().map(|r| r.min_temp).collect();
@@ -268,12 +275,8 @@ impl ParquetWriter {
             let batch_records_to_read = (batch.num_rows()).min(limit - total_read);
 
             for i in 0..batch_records_to_read {
-                let date = chrono::NaiveDate::from_num_days_from_ce_opt(dates.value(i))
-                    .ok_or_else(|| {
-                        crate::error::ProcessingError::Config(
-                            "Invalid date in Parquet file".to_string(),
-                        )
-                    })?;
+                let date = chrono::NaiveDate::from_ymd_opt(1970, 1, 1).unwrap()
+                    + chrono::Duration::days(dates.value(i) as i64);
 
                 let record = ConsolidatedRecord::new(
                     station_ids.value(i),
@@ -422,7 +425,14 @@ impl ParquetWriter {
         // Extract data into separate vectors
         let station_ids: Vec<u32> = records.iter().map(|r| r.station_id).collect();
         let station_names: Vec<String> = records.iter().map(|r| r.station_name.clone()).collect();
-        let dates: Vec<i32> = records.iter().map(|r| r.date.num_days_from_ce()).collect();
+        let dates: Vec<i32> = records
+            .iter()
+            .map(|r| {
+                r.date
+                    .signed_duration_since(chrono::NaiveDate::from_ymd_opt(1970, 1, 1).unwrap())
+                    .num_days() as i32
+            })
+            .collect();
         let latitudes: Vec<f64> = records.iter().map(|r| r.latitude).collect();
         let longitudes: Vec<f64> = records.iter().map(|r| r.longitude).collect();
 
@@ -709,12 +719,8 @@ impl ParquetWriter {
             let batch_records_to_read = (batch.num_rows()).min(limit - total_read);
 
             for i in 0..batch_records_to_read {
-                let date = chrono::NaiveDate::from_num_days_from_ce_opt(dates.value(i))
-                    .ok_or_else(|| {
-                        crate::error::ProcessingError::Config(
-                            "Invalid date in Parquet file".to_string(),
-                        )
-                    })?;
+                let date = chrono::NaiveDate::from_ymd_opt(1970, 1, 1).unwrap()
+                    + chrono::Duration::days(dates.value(i) as i64);
 
                 use crate::models::weather::PhysicalValidity;
 
@@ -1002,7 +1008,8 @@ impl ParquetWriter {
                 let station_id = station_ids.value(i);
                 stations.insert(station_id);
 
-                let date = chrono::NaiveDate::from_num_days_from_ce_opt(dates.value(i)).unwrap();
+                let date = chrono::NaiveDate::from_ymd_opt(1970, 1, 1).unwrap()
+                    + chrono::Duration::days(dates.value(i) as i64);
 
                 // Update date bounds
                 min_date = Some(min_date.map_or(date, |d: chrono::NaiveDate| d.min(date)));

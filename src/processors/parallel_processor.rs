@@ -171,7 +171,7 @@ impl ParallelProcessor {
     where
         F: Fn(&[ConsolidatedRecord]) -> Result<()> + Sync + Send,
     {
-        let total_batches = records.len().div_ceil(self.chunk_size);
+        let total_batches = (records.len() + self.chunk_size - 1) / self.chunk_size;
         let processed_batches = Arc::new(AtomicUsize::new(0));
 
         if let Some(p) = progress {

@@ -54,7 +54,7 @@ impl MultiArchiveProcessor {
             let path = entry.path();
 
             // Filter for zip files
-            if !path.is_file() || path.extension().is_none_or(|ext| ext != "zip") {
+            if !path.is_file() || path.extension().map_or(true, |ext| ext != "zip") {
                 continue;
             }
 

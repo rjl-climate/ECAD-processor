@@ -367,9 +367,7 @@ impl ArchiveProcessor {
             }
 
             // Update station statistics
-            let station_stats = station_statistics
-                .entry(record.station_id)
-                .or_insert_with(|| StationStatistics::default());
+            let station_stats = station_statistics.entry(record.station_id).or_default();
 
             station_stats.total_records += 1;
 

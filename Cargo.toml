@@ -1,6 +1,6 @@
 [package]
 name = "ecad-processor"
-version = "2.0.0"
+version = "2.0.1"
 edition = "2021"
 authors = ["Richard Lyon <richlyon@fastmail.com>"]
 description = "High-performance multi-metric weather data processor for European Climate Assessment & Dataset (ECA&D) archives with Parquet output"
