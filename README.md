@@ -1,6 +1,6 @@
 # European Climate Assessment & Dataset Processor
 
-A high-performance Rust application for processing multi-metric weather data from the European Climate Assessment & Dataset (ECA&D) format into efficient Parquet files for analysis.
+A high-performance Rust application for processing multi-metric weather data from the [European Climate Assessment & Dataset (ECA&D)](https://www.ecad.eu/dailydata/customquery.php) format into efficient Parquet files for analysis.
 
 ## Features
 

@@ -3,8 +3,15 @@ name = "ecad-processor"
 version = "2.0.0"
 edition = "2021"
 authors = ["Richard Lyon <richlyon@fastmail.com>"]
-description = "European Climate Assessment & Dataset weather data processor"
+description = "High-performance multi-metric weather data processor for European Climate Assessment & Dataset (ECA&D) archives with Parquet output"
 license = "MIT"
+repository = "https://github.com/rjl-climate/ECAD-processor"
+homepage = "https://github.com/rjl-climate/ECAD-processor"
+documentation = "https://docs.rs/ecad-processor"
+readme = "README.md"
+keywords = ["weather", "climate", "ecad", "parquet", "data-processing"]
+categories = ["command-line-utilities", "science", "data-structures"]
+rust-version = "1.70"
 
 [dependencies]
 # Data processing and serialization
